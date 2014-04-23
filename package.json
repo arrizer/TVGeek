@@ -1,0 +1,13 @@
+{
+  "name": "tvgeek",
+  "description": "One stop TV show bliss",
+  "version": "0.0.1",
+  "repository": "http://example.com/",
+  "private": false,
+  "main": "tvgeek.coffee",
+  "dependencies": {
+    "libxmljs" : "*",
+    "cli-color" : "*",
+    "sprintf" : "*"
+  }
+}
