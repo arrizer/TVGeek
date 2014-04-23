@@ -1,4 +1,4 @@
-var App, Async, CLIColor, Config, EventEmitter, File, FileSystem, HTTP, LibXML, Log, Path, SizeFormatter, TheTVDBAPI, app, log, sortable, sprintf,
+var App, Async, CLIColor, Config, File, FileSystem, HTTP, LibXML, Log, Path, SizeFormatter, TheTVDBAPI, app, log, sortable, sprintf,
   __slice = [].slice;
 
 FileSystem = require('fs');
@@ -645,45 +645,6 @@ App = (function() {
   };
 
   return App;
-
-})();
-
-EventEmitter = (function() {
-  function EventEmitter() {}
-
-  EventEmitter.prototype.on = function(event, callback) {
-    if (this._listeners == null) {
-      this._listeners = {};
-    }
-    if (this._listeners[event] == null) {
-      this._listeners[event] = [];
-    }
-    return this._listeners[event].push(callback);
-  };
-
-  EventEmitter.prototype.emit = function() {
-    var args, callback, event, _i, _len, _ref, _results;
-    event = arguments[0], args = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
-    if ((this._listeners != null) && (this._listeners[event] != null)) {
-      _ref = this._listeners[event];
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        callback = _ref[_i];
-        _results.push(callback.apply(null, args));
-      }
-      return _results;
-    }
-  };
-
-  EventEmitter.prototype.propagate = function(emitter, event) {
-    return emitter.on(event, ((function(_this) {
-      return function() {
-        return _this.emit(event);
-      };
-    })(this)));
-  };
-
-  return EventEmitter;
 
 })();
 

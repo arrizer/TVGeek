@@ -44,3 +44,8 @@ Your library folder is `/home/someone/tvshows`.
 The structure is `%show_sortable%/Season %season%/%show% S%season_00%E%episode_00% %title%`.
 One example episode will moved from the inbox to:
 `/home/someone/tvshows/Simpsons, The/Season 25/The Simpsons S25E18 Days of Future Future.mkv`
+
+## Development
+
+The script itself is written in multiple CoffeeScript source files. Run `cake build` to combine all source files to a single script and compile it to JavaScript.
+Do not edit the main script files directly!
