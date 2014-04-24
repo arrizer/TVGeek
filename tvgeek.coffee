@@ -1,11 +1,13 @@
 #!/usr/bin/env coffee
+
 FileSystem = require 'fs'
 Path       = require 'path'
-CLIColor   = require 'cli-color'
-sprintf    = require('sprintf').sprintf
 HTTP       = require 'http'
+sprintf    = require('sprintf').sprintf
 LibXML     = require 'libxmljs'
 Async      = require 'async'
+CLIColor   = require 'cli-color'
+Readline   = require('readline')
 
 class Log
   LEVELS =
@@ -30,20 +32,15 @@ class Log
       colors: ['white','bgRedBright']
       textColors: ['red']
 
-  DEFAULT = null
-
-  @Default: ->
-    DEFAULT = @Stderr() unless DEFAULT?
-    return DEFAULT
-
-  @Stderr: ->
+  @StdErr: ->
     new Log(process.stderr)
     
   constructor: (@stream) ->
     @colored = yes
     @timestamp = no
     @level = 5
-    @prefix = ''
+    @buffer = ''
+    @paused = no
     for level of LEVELS
       do (level) =>
         @[level] = (message, parameters...) =>
@@ -60,10 +57,26 @@ class Log
     line = ''
     line += @colorize('[' + new Date() + '] ', 'blackBright') if @timestamp
     line += @colorize('[' + level.toUpperCase() + ']', LEVELS[level].colors...)
-    line += ' ' + @colorize(sprintf(@prefix + message, parameters...), LEVELS[level].textColors...)
-    @stream.write line + "\n", 'utf8'
+    line += ' ' + @colorize(sprintf(message, parameters...), LEVELS[level].textColors...)
+    @write line + "\n"
 
-log = Log.Default()
+  write: (message) ->
+    if @paused
+      @buffer += message
+    else
+      @stream.write message, 'utf8'
+
+  pause: ->
+    @paused = yes
+
+  resume: ->
+    @paused = no
+    @write @buffer
+    @buffer = ''
+
+log = Log.StdErr()
+
+
 class Config
   DEFAULTS =
     inbox: null
@@ -94,6 +107,8 @@ class Config
 
   get: ->
     @config
+
+
 class TheTVDBAPI
   API_KEY = '5EFCC7790F190138'
   BASE = 'http://thetvdb.com'
@@ -119,7 +134,11 @@ class TheTVDBAPI
         next error
       else
         xml = LibXML.parseXmlString data
-        next null, xml
+        xmlError = xml.get '/Data/Error'
+        if xmlError?
+          next new Error("TVDB API Error: " + xmlError.toString())
+        else
+          next null, xml
 
   show: (name, next) ->
     @requestXML "#{BASE}/api/GetSeries.php?seriesname=" + encodeURIComponent(name), (error, xml) =>
@@ -171,20 +190,34 @@ class SizeFormatter
       factor *= 1024
       unit++
     return (Math.round((bytes / factor) * 100) / 100) + ' ' + UNITS[unit]
-#_require TheTVDBAPI
-#_require SizeFormatter
 
-sortable = (string) ->
-  for prefix in ['The','Der','Die','Das','Le','Les','La', 'Los']
-    regexp = new RegExp('^'+prefix+' ', 'i')
-    return string.replace(regexp, '') + ', ' + prefix if regexp.test string
-  return string
+
+class UserPrompt
+  start: ->
+    @rl = Readline.createInterface
+      input: process.stdin,
+      output: process.stdout
+    @rl.pause()
+  
+  pick: (options, message, next) ->
+    index = 1
+    console.log message
+    for option in options
+      console.log "(#{index++}) " + option.label
+    log.pause()
+    @start()
+    @rl.question 'Pick one: ', (index) =>
+      next(options[index])
+      @rl.close()
+      log.resume()
+
+prompt = new UserPrompt()
 
 class File
   SEASON_EPISODE_RE = [
     # Extract <showName> <seasonNumber> <episodeNumber> from filename
     /^(.*) s(\d+)e(\d+)/gi,
-    /^(.*?) (\d{1})(\d{2})[^\d]/gi,
+    /^(.*?) (\d{1})(\d{2}) /gi,
     /^(.*?) (\d{1,2})x(\d{1,2})/gi
   ]
   AIRDATE_RE = [
@@ -193,6 +226,12 @@ class File
   ]
   TVDB = new TheTVDBAPI()
   DELIMITERS = /[\s,\.\-\+]+/g
+
+  sortable = (string) ->
+    for prefix in ['The','Der','Die','Das','Le','Les','La','Los']
+      regexp = new RegExp('^'+prefix+' ', 'i')
+      return string.replace(regexp, '') + ', ' + prefix if regexp.test string
+    return string
 
   constructor: (@directory, @filename) ->
     @extension = Path.extname @filename
@@ -204,7 +243,7 @@ class File
     log.info 'Matching "%s"', @filename  
     @nameNormalized = @name.replace DELIMITERS, ' '
     Async.series [@extract.bind(@), @fetchShow.bind(@), @fetchEpisode.bind(@)], (error) =>
-      log.error "Could not match '%s': %s", @filename, error if error?
+      log.error "%s: %s", @filename, error if error?
       next error
     
   extract: (next) ->
@@ -222,7 +261,7 @@ class File
           show: match[1]
           season: parseInt(match[2])
           episode: parseInt(match[3])
-        log.debug 'Extracted -> "%s" S%02fE%02f', @extracted.shpw, @extracted.season, @extracted.episode
+        log.debug 'Extracted -> "%s" S%02fE%02f', @extracted.show, @extracted.season, @extracted.episode
         regexp.lastIndex = 0
         return yes
     return no
@@ -249,9 +288,11 @@ class File
         if shows.length == 1
           next(null, @show = shows[0])
         else if shows.length == 0
-          next new Error("Show named '#{name}' not found")
+          next new Error("Show named '#{@extracted.show}' not found")
         else
-          next new Error("Show name '#{name}' is ambigious")
+          show.label = show.name for show in shows
+          prompt.pick shows, "To which show does #{@filename} belong?", (show) =>
+            next(null, @show = show)
 
   fetchEpisode: (next) ->
     @[@extracted.fetch] (error, episode) =>
@@ -272,8 +313,9 @@ class File
       show: @show.name
       season: @episode.season
       episode: @episode.episode
-      title: @episode.title
+      title: @episode.titlewww
     for key, value of placeholders
+      value = '' unless value?
       value = value.toString().replace /(\/|\\|:|;)/g, ''
       placeholders[key] = value
       placeholders[key + '_sortable'] = sortable value 
@@ -309,7 +351,8 @@ class File
               log.warn "Smaller file '%s' in library will be replaced", file
               overwrite = yes
             else if stat.size > @stat.size
-              log.warn "Bigger file '%s' (%s > %s) already in library", file, SizeFormatter.Format(stat.size), SizeFormatter.Format(@stat.size)
+              log.warn "Bigger file '%s' (%s > %s) already in library", file, 
+                SizeFormatter.Format(stat.size), SizeFormatter.Format(@fileinfo.size)
             else
               log.warn "File '%s' already in library", file
           else if overwritePolicy is 'always'
@@ -345,11 +388,8 @@ class File
             next(new Error("Path #{directory} exists but is not a directory"))
 
   toString: ->
-    sprintf('%s S%02fE%02f "%s" (%s)', @show.name, parseInt(@episode.season), parseInt(@episode.episode), @episode.title, SizeFormatter.Format(@fileinfo.size))
-#_require Log
-#_require Config
-#_require File
-#_require SizeFormatter
+    sprintf('%s S%02fE%02f "%s" (%s)', @show.name, parseInt(@episode.season), parseInt(@episode.episode), 
+      @episode.title, SizeFormatter.Format(@fileinfo.size))
 
 class App
   main: ->

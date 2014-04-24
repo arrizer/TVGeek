@@ -6,8 +6,9 @@
   "private": false,
   "main": "tvgeek.coffee",
   "dependencies": {
-    "libxmljs" : "*",
-    "cli-color" : "*",
-    "sprintf" : "*"
+    "libxmljs": "*",
+    "cli-color": "*",
+    "sprintf": "*",
+    "prompt": "^0.2.12"
   }
 }
