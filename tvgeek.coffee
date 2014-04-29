@@ -227,7 +227,7 @@ class UserPrompt
       log.pause()
       @rl.resume()
       @rl.question 'Pick one: ', (index) =>
-        next(options[index])
+        next(options[index-1])
         @rl.pause()
         log.resume()
         release()
@@ -351,15 +351,16 @@ class File
     path = @libraryPath(pattern)
     basename = Path.basename path
     directory = Path.join(libraryDir, Path.dirname (path))
-    @makeLibraryPath libraryDir, directory, (error, existed) =>
+    @makeLibraryPath libraryDir, Path.dirname(path), (error, existed) =>
       if error?
         next error
       else
         @overwrite directory, basename, overwritePolicy, (fileExisted, move) =>
           if move
             @moveTo libraryDir, path, next 
-          else 
-            next(null, yes)
+          else
+            FileSystem.unlink Path.join(@directory, @filename), (error) =>
+              next(error, yes)
 
   overwrite: (directory, basename, overwritePolicy, next) ->
     FileSystem.readdir directory, (error, files) =>
@@ -394,20 +395,22 @@ class File
     FileSystem.rename origin, destination, next
 
   makeLibraryPath: (library, directory, next) ->
-    FileSystem.exists library, (exists) =>
-      return next(new Error("Library path #{library} does not exist")) unless exists
-      FileSystem.stat directory, (error, stat) =>
-        if error? and error.name is 'ENOENT'
-          log.debug "Creting subdirectory '%s' in library", directory
-          FileSystem.mkdir directory, (error) =>
-            next error, no
-        else if error?
-          next error
-        else
-          if stat.isDirectory()
-            next null, yes
-          else
-            next(new Error("Path #{directory} exists but is not a directory"))
+    @makeLibraryPathRecursive library, '', directory.split(Path.sep), next
+
+  makeLibraryPathRecursive: (library, path, remaining, next) ->
+    directory = Path.join library, path
+    recurse = =>
+      if remaining.length > 0
+        @makeLibraryPathRecursive library, Path.join(path, remaining.shift()), remaining, next
+      else
+        next()
+    FileSystem.exists directory, (exists) =>
+      unless exists
+        log.debug 'Creating directory "%s"', directory
+        FileSystem.mkdir directory, (error) =>
+          if error then next(error) else recurse()
+      else
+        recurse()
 
   toString: ->
     sprintf('%s S%02fE%02f "%s" (%s)', @show.name, parseInt(@episode.season), parseInt(@episode.episode), 
