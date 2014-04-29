@@ -76,7 +76,6 @@ class Log
 
 log = Log.StdErr()
 
-
 class Config
   DEFAULTS =
     inbox: null
@@ -180,6 +179,8 @@ class TheTVDBAPI
           episode: get 'EpisodeNumber'
           director: get 'Director'
         next null, episode
+
+
 class SizeFormatter
   UNITS = ['bytes','KiB','MiB','GiB','PiB']
 
@@ -192,26 +193,47 @@ class SizeFormatter
     return (Math.round((bytes / factor) * 100) / 100) + ' ' + UNITS[unit]
 
 
+class Lock
+  constructor: ->
+    @locked = no
+    @queue = []
+
+  acquire: (critical) ->
+    @queue.push critical
+    @next() unless @locked
+    
+  next: ->
+    return if @queue.length == 0
+    @locked = yes
+    @queue.shift() =>
+      @locked = no
+      @next()
+
+
 class UserPrompt
-  start: ->
+  constructor: ->
     @rl = Readline.createInterface
       input: process.stdin,
       output: process.stdout
     @rl.pause()
+    @lock = new Lock()
   
   pick: (options, message, next) ->
-    index = 1
-    console.log message
-    for option in options
-      console.log "(#{index++}) " + option.label
-    log.pause()
-    @start()
-    @rl.question 'Pick one: ', (index) =>
-      next(options[index])
-      @rl.close()
-      log.resume()
+    @lock.acquire (release) =>
+      index = 1
+      console.log message
+      for option in options
+        console.log "(#{index++}) " + option.label
+      log.pause()
+      @rl.resume()
+      @rl.question 'Pick one: ', (index) =>
+        next(options[index])
+        @rl.pause()
+        log.resume()
+        release()
 
 prompt = new UserPrompt()
+
 
 class File
   SEASON_EPISODE_RE = [
@@ -237,7 +259,7 @@ class File
     @extension = Path.extname @filename
     @name = Path.basename @filename, @extension
     @filepath = Path.join(@directory, @filename)
-    @fileinfo = FileSystem.statSync @filepath
+    @info = FileSystem.statSync @filepath
 
   match: (next) ->
     log.info 'Matching "%s"', @filename  
@@ -347,12 +369,12 @@ class File
           stat = FileSystem.statSync filename
           overwrite = no
           if overwritePolicy is 'replaceWhenBigger'
-            if stat.size < @stat.size
+            if stat.size < @info.size
               log.warn "Smaller file '%s' in library will be replaced", file
               overwrite = yes
-            else if stat.size > @stat.size
+            else if stat.size > @info.size
               log.warn "Bigger file '%s' (%s > %s) already in library", file, 
-                SizeFormatter.Format(stat.size), SizeFormatter.Format(@fileinfo.size)
+                SizeFormatter.Format(stat.size), SizeFormatter.Format(@info.size)
             else
               log.warn "File '%s' already in library", file
           else if overwritePolicy is 'always'
@@ -389,7 +411,7 @@ class File
 
   toString: ->
     sprintf('%s S%02fE%02f "%s" (%s)', @show.name, parseInt(@episode.season), parseInt(@episode.episode), 
-      @episode.title, SizeFormatter.Format(@fileinfo.size))
+      @episode.title, SizeFormatter.Format(@info.size))
 
 class App
   main: ->
