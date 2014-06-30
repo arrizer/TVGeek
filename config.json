@@ -1,6 +1,6 @@
 {
-  "inbox"     : "/Users/matthias/TVShows/Inbox",
-  "library"   : "/Users/matthias/TVShows/Library",
+  "inbox"     : "/Volumes/Silvertomb/TVShows/Inbox",
+  "library"   : "/Volumes/Silvertomb/TVShows/Library",
   "structure" : "%show_sortable%/Season %season_00%/%show% S%season_00%E%episode_00% %title%",
   "policy"    : "replaceWhenBigger",
   "considerExtensions" : ["mp4","mkv","avi","mov"],

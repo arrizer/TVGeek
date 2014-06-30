@@ -8,6 +8,8 @@ LibXML     = require 'libxmljs'
 Async      = require 'async'
 CLIColor   = require 'cli-color'
 Readline   = require('readline')
+CLI        = require 'commander'
+options = {}
 
 class Log
   LEVELS =
@@ -38,7 +40,7 @@ class Log
   constructor: (@stream) ->
     @colored = yes
     @timestamp = no
-    @level = 5
+    @level = 0
     @buffer = ''
     @paused = no
     for level of LEVELS
@@ -54,6 +56,7 @@ class Log
     return chain(string)
 
   log: (level, message, parameters...) ->
+    return unless LEVELS[level].level >= @level
     line = ''
     line += @colorize('[' + new Date() + '] ', 'blackBright') if @timestamp
     line += @colorize('[' + level.toUpperCase() + ']', LEVELS[level].colors...)
@@ -219,25 +222,42 @@ class UserPrompt
     @lock = new Lock()
   
   pick: (options, message, next) ->
+    return next null if CLI.noninteractive
     @lock.acquire (release) =>
       index = 1
       console.log message
+      options.push
+        label: CLIColor.yellow('None of the above')
       for option in options
         console.log "(#{index++}) " + option.label
       log.pause()
       @rl.resume()
-      @rl.question 'Pick one: ', (index) =>
-        next(options[index-1])
+      index = null
+      @prompt 'Pick one: ', (index) =>
+        if !/^\d+$/.test(index) or parseInt(index) < 1 or parseInt(index) > options.length
+          return "Enter a number between 1 and #{options.length}"
+        if index is options.length
+          next null
+        else if index < options.length
+          next(options[index-1])
+        release()
         @rl.pause()
         log.resume()
-        release()
+        return null
+
+  prompt: (message, next) ->
+    @rl.question message, (index) =>
+      if (error = next(index))?
+        console.log error
+        @prompt message, next 
 
 prompt = new UserPrompt()
-
+  
 
 class File
   SEASON_EPISODE_RE = [
     # Extract <showName> <seasonNumber> <episodeNumber> from filename
+    /^(.*) season\s*(\d+)\s*episode\s*(\d+)/gi,
     /^(.*) s(\d+)e(\d+)/gi,
     /^(.*?) (\d{1})(\d{2}) /gi,
     /^(.*?) (\d{1,2})x(\d{1,2})/gi
@@ -259,7 +279,7 @@ class File
     @extension = Path.extname @filename
     @name = Path.basename @filename, @extension
     @filepath = Path.join(@directory, @filename)
-    @info = FileSystem.statSync @filepath
+    @info = {}
 
   match: (next) ->
     log.info 'Matching "%s"', @filename  
@@ -314,7 +334,10 @@ class File
         else
           show.label = show.name for show in shows
           prompt.pick shows, "To which show does #{@filename} belong?", (show) =>
-            next(null, @show = show)
+            if show?
+              next(null, @show = show)
+            else
+              next new Error("User did not pick a show")
 
   fetchEpisode: (next) ->
     @[@extracted.fetch] (error, episode) =>
@@ -335,7 +358,7 @@ class File
       show: @show.name
       season: @episode.season
       episode: @episode.episode
-      title: @episode.titlewww
+      title: @episode.title
     for key, value of placeholders
       value = '' unless value?
       value = value.toString().replace /(\/|\\|:|;)/g, ''
@@ -367,26 +390,28 @@ class File
       for file in files
         if Path.basename(file, Path.extname(file)) is basename
           filename = Path.join(directory, file)
-          stat = FileSystem.statSync filename
-          overwrite = no
-          if overwritePolicy is 'replaceWhenBigger'
-            if stat.size < @info.size
-              log.warn "Smaller file '%s' in library will be replaced", file
-              overwrite = yes
-            else if stat.size > @info.size
-              log.warn "Bigger file '%s' (%s > %s) already in library", file, 
-                SizeFormatter.Format(stat.size), SizeFormatter.Format(@info.size)
-            else
-              log.warn "File '%s' already in library", file
-          else if overwritePolicy is 'always'
-            log.warn "File '%s' in library will be replaced", file
-            overwrite = yes
-          if overwrite
-            FileSystem.unlink filename, (error) =>
-              log.error "Failed to remove existing file '%s' in library: %s", filename, error
-              return next yes, !error?
-          else
-            return next yes, no
+          FileSystem.stat filename, (error, stat) =>
+            FileSystem.statSync @filepath, (error, info) =>
+              @info = info
+              overwrite = no
+              if overwritePolicy is 'replaceWhenBigger'
+                if stat.size < @info.size
+                  log.warn "Smaller file '%s' in library will be replaced", file
+                  overwrite = yes
+                else if stat.size > @info.size
+                  log.warn "Bigger file '%s' (%s > %s) already in library", file, 
+                    SizeFormatter.Format(stat.size), SizeFormatter.Format(@info.size)
+                else
+                  log.warn "File '%s' already in library", file
+              else if overwritePolicy is 'always'
+                log.warn "File '%s' in library will be replaced", file
+                overwrite = yes
+              if overwrite
+                FileSystem.unlink filename, (error) =>
+                  log.error "Failed to remove existing file '%s' in library: %s", filename, error if error?
+                  return next yes, !error?
+              else
+                return next yes, no
       next no, yes
 
   moveTo: (library, path, next) ->
@@ -418,10 +443,22 @@ class File
 
 class App
   main: ->
+    @parseArguments()
+    log.level = 1 unless CLI.verbose
     @config = new Config(__dirname + '/config.json')
     @config.read =>
       @config = @config.get()
       @processFiles @config.inbox
+
+  parseArguments: ->
+    CLI
+    .version '0.1'
+    .option '-n, --noninteractive', 'Don\'t ask anything'
+    .option '-v, --verbose', 'Log debug messages'
+    .parse process.argv
+
+  printHelp: ->
+    console.log @cli.toString()
 
   processFiles: (inbox) ->
     FileSystem.readdir inbox, (error ,files) =>

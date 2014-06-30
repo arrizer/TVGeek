@@ -9,6 +9,7 @@
     "libxmljs": "*",
     "cli-color": "*",
     "sprintf": "*",
-    "prompt": "^0.2.12"
+    "prompt": "^0.2.12",
+    "node-commandline": "*"
   }
 }
