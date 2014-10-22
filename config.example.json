@@ -1,6 +1,6 @@
 {
-  "inbox"     : "/Volumes/Themisto/TVShows/Inbox",
-  "library"   : "/Volumes/Themisto/TVShows/Library",
+  "inbox"     : "/Path/To/Your/Inbox",
+  "library"   : "/Path/To/Your/Library",
   "structure" : "%show_sortable%/Season %season_00%/%show% S%season_00%E%episode_00% %title%",
   "policy"    : "replaceWhenBigger",
   "considerExtensions" : ["mp4","mkv","avi","mov"],

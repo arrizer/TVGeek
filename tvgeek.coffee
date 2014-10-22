@@ -7,8 +7,8 @@ sprintf    = require('sprintf').sprintf
 LibXML     = require 'libxmljs'
 Async      = require 'async'
 CLIColor   = require 'cli-color'
-Readline   = require('readline')
 CLI        = require 'commander'
+
 options = {}
 
 class Log
@@ -212,48 +212,6 @@ class Lock
       @locked = no
       @next()
 
-
-class UserPrompt
-  constructor: ->
-    @rl = Readline.createInterface
-      input: process.stdin,
-      output: process.stdout
-    @rl.pause()
-    @lock = new Lock()
-  
-  pick: (options, message, next) ->
-    return next null if CLI.noninteractive
-    @lock.acquire (release) =>
-      index = 1
-      console.log message
-      options.push
-        label: CLIColor.yellow('None of the above')
-      for option in options
-        console.log "(#{index++}) " + option.label
-      log.pause()
-      @rl.resume()
-      index = null
-      @prompt 'Pick one: ', (index) =>
-        if !/^\d+$/.test(index) or parseInt(index) < 1 or parseInt(index) > options.length
-          return "Enter a number between 1 and #{options.length}"
-        if index is options.length
-          next null
-        else if index < options.length
-          next(options[index-1])
-        release()
-        @rl.pause()
-        log.resume()
-        return null
-
-  prompt: (message, next) ->
-    @rl.question message, (index) =>
-      if (error = next(index))?
-        console.log error
-        @prompt message, next 
-
-prompt = new UserPrompt()
-  
-
 class File
   SEASON_EPISODE_RE = [
     # Extract <showName> <seasonNumber> <episodeNumber> from filename
@@ -332,12 +290,7 @@ class File
         else if shows.length == 0
           next new Error("Show named '#{@extracted.show}' not found")
         else
-          show.label = show.name for show in shows
-          prompt.pick shows, "To which show does #{@filename} belong?", (show) =>
-            if show?
-              next(null, @show = show)
-            else
-              next new Error("User did not pick a show")
+          next(null, @show = shows[0])
 
   fetchEpisode: (next) ->
     @[@extracted.fetch] (error, episode) =>
@@ -386,13 +339,16 @@ class File
               next(error, yes)
 
   overwrite: (directory, basename, overwritePolicy, next) ->
-    FileSystem.readdir directory, (error, files) =>
-      for file in files
-        if Path.basename(file, Path.extname(file)) is basename
-          filename = Path.join(directory, file)
-          FileSystem.stat filename, (error, stat) =>
-            FileSystem.statSync @filepath, (error, info) =>
-              @info = info
+    FileSystem.stat @filepath, (error, info) =>
+      @info = info
+      FileSystem.readdir directory, (error, files) =>
+        Async.eachSeries files, (file, done) =>
+          if Path.basename(file, Path.extname(file)) is basename
+            filename = Path.join(directory, file)
+            FileSystem.stat filename, (error, stat) =>
+              if error?
+                log.error "Could not get size of file %s in library: %s", filename, error
+                return done()
               overwrite = no
               if overwritePolicy is 'replaceWhenBigger'
                 if stat.size < @info.size
@@ -409,10 +365,14 @@ class File
               if overwrite
                 FileSystem.unlink filename, (error) =>
                   log.error "Failed to remove existing file '%s' in library: %s", filename, error if error?
+                  done(1)
                   return next yes, !error?
               else
+                done(1)
                 return next yes, no
-      next no, yes
+              done()
+        , =>
+          next no, yes
 
   moveTo: (library, path, next) ->
     origin = Path.join(@directory, @filename)
