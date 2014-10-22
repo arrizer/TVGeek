@@ -326,29 +326,30 @@ class File
   move: (libraryDir, pattern, overwritePolicy, next) ->
     path = @libraryPath(pattern)
     basename = Path.basename path
-    directory = Path.join(libraryDir, Path.dirname (path))
+    libraryDirectory = Path.join(libraryDir, Path.dirname (path))
     @makeLibraryPath libraryDir, Path.dirname(path), (error, existed) =>
       if error?
         next error
       else
-        @overwrite directory, basename, overwritePolicy, (fileExisted, move) =>
+        @overwrite libraryDirectory, basename, overwritePolicy, (fileExisted, move) =>
+          console.log "Result:", fileExisted, move
           if move
             @moveTo libraryDir, path, next 
           else
             FileSystem.unlink Path.join(@directory, @filename), (error) =>
               next(error, yes)
 
-  overwrite: (directory, basename, overwritePolicy, next) ->
+  overwrite: (libraryDirectory, basename, overwritePolicy, next) ->
     FileSystem.stat @filepath, (error, info) =>
       @info = info
-      FileSystem.readdir directory, (error, files) =>
+      FileSystem.readdir libraryDirectory, (error, files) =>
         Async.eachSeries files, (file, done) =>
           if Path.basename(file, Path.extname(file)) is basename
             filename = Path.join(directory, file)
             FileSystem.stat filename, (error, stat) =>
               if error?
-                log.error "Could not get size of file %s in library: %s", filename, error
-                return done()
+                error = new Error("Could not get size of file #{filename} in library: #{error}")
+                return done(error)
               overwrite = no
               if overwritePolicy is 'replaceWhenBigger'
                 if stat.size < @info.size
@@ -370,9 +371,11 @@ class File
               else
                 done(1)
                 return next yes, no
-              done()
-        , =>
-          next no, yes
+          else
+            done()
+        , (error) =>
+          next no, yes unless error?
+          
 
   moveTo: (library, path, next) ->
     origin = Path.join(@directory, @filename)
