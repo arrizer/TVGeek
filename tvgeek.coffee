@@ -332,7 +332,6 @@ class File
         next error
       else
         @overwrite libraryDirectory, basename, overwritePolicy, (fileExisted, move) =>
-          console.log "Result:", fileExisted, move
           if move
             @moveTo libraryDir, path, next 
           else
@@ -345,7 +344,7 @@ class File
       FileSystem.readdir libraryDirectory, (error, files) =>
         Async.eachSeries files, (file, done) =>
           if Path.basename(file, Path.extname(file)) is basename
-            filename = Path.join(directory, file)
+            filename = Path.join(libraryDirectory, file)
             FileSystem.stat filename, (error, stat) =>
               if error?
                 error = new Error("Could not get size of file #{filename} in library: #{error}")
