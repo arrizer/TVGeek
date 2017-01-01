@@ -135,10 +135,13 @@ class TheTVDBAPI
       if error?
         next error
       else
-        xml = LibXML.parseXmlString data
-        xmlError = xml.get '/Data/Error'
-        if xmlError?
-          next new Error("TVDB API Error: " + xmlError.toString())
+        try
+          xml = LibXML.parseXmlString data
+        catch parserError
+          return next new Error("XML parser error: " + parserError + "\nXML:\n" + data)
+        apiError = xml.get '/Data/Error'
+        if apiError?
+          next new Error("TVDB API Error: " + apiError.toString())
         else
           next null, xml
 
