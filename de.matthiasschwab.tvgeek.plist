@@ -2,24 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/local/bin:$PATH</string>
+	</dict>
 	<key>ExitTimeOut</key>
 	<integer>0</integer>
 	<key>Label</key>
 	<string>de.matthiasschwab.tvgeek</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/bin/env</string>
-		<string>coffee</string>
+		<string>/usr/local/bin/coffee</string>
 		<string>/Users/matthias/Documents/Projects/TVGeek/tvgeek.coffee</string>
 		<string>--noninteractive</string>
 	</array>
+	<key>RunAtLoad</key>
+	<true/>
 	<key>StandardErrorPath</key>
 	<string>/Users/matthias/Documents/Projects/TVGeek/tvgeek.error.log</string>
 	<key>StandardOutPath</key>
 	<string>/Users/matthias/Documents/Projects/TVGeek/tvgeek.log</string>
 	<key>WatchPaths</key>
 	<array>
-		<string>/Volumes/Silvertomb/TVShows/Inbox</string>
+		<string>/Volumes/Callisto/TVShows/Inbox</string>
 	</array>
 </dict>
 </plist>
