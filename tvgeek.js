@@ -605,7 +605,7 @@
       var destination, origin;
       origin = Path.join(this.directory, this.filename);
       destination = Path.join(library, path + this.extension);
-      return next();
+      return FileSystem.rename(origin, destination, next);
     };
 
     File.prototype.makeLibraryPath = function(library, directory, next) {

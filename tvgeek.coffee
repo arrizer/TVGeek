@@ -364,8 +364,7 @@ class File
   moveTo: (library, path, next) ->
     origin = Path.join(@directory, @filename)
     destination = Path.join(library, path + @extension)
-    #FileSystem.rename origin, destination, next
-    next()
+    FileSystem.rename origin, destination, next
 
   makeLibraryPath: (library, directory, next) ->
     @makeLibraryPathRecursive library, '', directory.split(Path.sep), next
