@@ -20,6 +20,8 @@ The configuration file is called `config.json` and may contain the following key
 - `policy` = What to do when a file with the same name is already in the library (`always` will always replace the existing file, `replaceWhenBigger` = replace the file in the library when the incoming file is bigger, `never` = Never overwrite anything)
 - `considerExtensions` = An array of file extensions that are processed (other files in the inbox are ignored)
 - `deleteExtensions` = An array of file extensions that are deleted from the inbox if found (e.g. to remove clutter like 'txt' and 'nfo' files)
+- `pushoverAPIToken` = (optional) An app token to use for sending push notifications via pushover.net
+- `pushoverUserKey` = (optional) A user key to use for sending push notifications via pushover.net
 
 ## Run
 
