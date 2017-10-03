@@ -6,10 +6,11 @@
   "private": false,
   "main": "tvgeek.coffee",
   "dependencies": {
-    "cli-color": "*",
-    "libxmljs": "*",
-    "sprintf": "*",
     "async": "*",
-    "commander": "*"
+    "cli-color": "*",
+    "commander": "*",
+    "libxmljs": "*",
+    "request": "^2.83.0",
+    "sprintf": "*"
   }
 }

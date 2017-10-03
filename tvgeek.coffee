@@ -8,6 +8,7 @@ LibXML     = require 'libxmljs'
 Async      = require 'async'
 CLIColor   = require 'cli-color'
 CLI        = require 'commander'
+Request    = require 'request'
 
 options = {}
 
@@ -87,6 +88,8 @@ class Config
     policy: 'replaceWhenBigger'
     considerExtensions: ["mp4","mkv","avi","mov"]
     deleteExtensions: []
+    pushoverAPIToken: null
+    pushoverUserKey: null
 
   constructor: (@file) ->
   
@@ -110,28 +113,25 @@ class Config
   get: ->
     @config
 
+class PushoverAPI
+  constructor: (@appToken, @userKey) ->
+
+  sendPushNotification: (title, message, next) =>
+    formData =
+      token: @appToken
+      user: @userKey
+      title: title
+      message: message
+    Request (method: 'POST', url: 'https://api.pushover.net/1/messages.json', formData: formData, form: true), (error, response, data) =>
+      console.log data
+      next error
 
 class TheTVDBAPI
   API_KEY = '5EFCC7790F190138'
   BASE = 'http://thetvdb.com'
 
-  request: (url, next) ->
-    log.debug '<TVDB> GET %s', url
-    req = HTTP.request url, (res) =>
-      if res.statusCode is 200
-        body = ''
-        res.on 'data', (data) => 
-          body += data.toString()
-        res.on 'end', =>
-          next null, body
-      else
-        next new Error("tvdb API request to #{url} failed with HTTP error #{res.statusCode}")
-    req.on 'error', (error) =>
-      next error
-    req.end()
-
   requestXML: (url, next) ->
-    @request url, (error, data) =>
+    Request (method: "GET", url: url), (error, response, data) =>
       if error?
         next error
       else
@@ -186,7 +186,6 @@ class TheTVDBAPI
           director: get 'Director'
         next null, episode
 
-
 class SizeFormatter
   UNITS = ['bytes','KiB','MiB','GiB','PiB']
 
@@ -197,23 +196,6 @@ class SizeFormatter
       factor *= 1024
       unit++
     return (Math.round((bytes / factor) * 100) / 100) + ' ' + UNITS[unit]
-
-
-class Lock
-  constructor: ->
-    @locked = no
-    @queue = []
-
-  acquire: (critical) ->
-    @queue.push critical
-    @next() unless @locked
-    
-  next: ->
-    return if @queue.length == 0
-    @locked = yes
-    @queue.shift() =>
-      @locked = no
-      @next()
 
 class File
   SEASON_EPISODE_RE = [
@@ -382,7 +364,8 @@ class File
   moveTo: (library, path, next) ->
     origin = Path.join(@directory, @filename)
     destination = Path.join(library, path + @extension)
-    FileSystem.rename origin, destination, next
+    #FileSystem.rename origin, destination, next
+    next()
 
   makeLibraryPath: (library, directory, next) ->
     @makeLibraryPathRecursive library, '', directory.split(Path.sep), next
@@ -413,6 +396,7 @@ class App
     @config = new Config(__dirname + '/config.json')
     @config.read =>
       @config = @config.get()
+      @pushoverAPI = new PushoverAPI(@config.pushoverAPIToken, @config.pushoverUserKey) if @config.pushoverAPIToken? and @config.pushoverUserKey?
       @processFiles @config.inbox
 
   parseArguments: ->
@@ -443,9 +427,13 @@ class App
     item = new File(inbox, file)
     item.match (error) =>
       unless error?
-        log.info '-> %s', item.toString()
         item.move @config.library, @config.structure, @config.policy, (error) =>
-          log.error "Failed to move '%s' to library: %s", item.filename, error if error?
+          if error?
+            log.error "Failed to move '%s' to library: %s", item.filename, error
+            return
+          log.info '-> %s', item.toString()
+          @pushoverAPI.sendPushNotification "TVGeek file added", item.toString(), (error) =>
+            log.error "Failed to send pushover notification for '%s': %s", item.filename, error if error?
 
 
 app = new App()
