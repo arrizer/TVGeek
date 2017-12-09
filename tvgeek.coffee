@@ -385,7 +385,7 @@ class File
         recurse()
 
   toString: ->
-    sprintf('%s S%02fE%02f "%s" (%s)', @show.name, parseInt(@episode.season), parseInt(@episode.episode), 
+    sprintf('%s S%02fE%02f %s', @show.name, parseInt(@episode.season), parseInt(@episode.episode), 
       @episode.title, SizeFormatter.Format(@info.size))
 
 class App
@@ -431,7 +431,7 @@ class App
             log.error "Failed to move '%s' to library: %s", item.filename, error
             return
           log.info '-> %s', item.toString()
-          @pushoverAPI.sendPushNotification "TVGeek file added", item.toString(), (error) =>
+          @pushoverAPI.sendPushNotification "New Episode", item.toString(), (error) =>
             log.error "Failed to send pushover notification for '%s': %s", item.filename, error if error?
 
 
