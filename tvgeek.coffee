@@ -420,7 +420,8 @@ class App
             for extension in @config.deleteExtensions
               if Path.extname(file) is '.' + extension
                 log.info "Deleting file '%s' from inbox", file
-                FileSystem.unlink Path.join(inbox, file)
+                FileSystem.unlink Path.join(inbox, file), (error) =>
+                  log.error "Failed to delete '%s' from inbox: %s", file, error if error?
 
   processFile: (inbox, file) ->
     item = new File(inbox, file)
