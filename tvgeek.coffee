@@ -138,7 +138,7 @@ class TheTVDBAPI
         try
           xml = LibXML.parseXmlString data
         catch parserError
-          return next new Error("XML parser error: " + parserError + "\nXML:\n" + data)
+          return next new Error(url + ": XML parser error: " + parserError + "\nXML:\n" + data)
         apiError = xml.get '/Data/Error'
         if apiError?
           next new Error("TVDB API Error: " + apiError.toString())
