@@ -6,7 +6,7 @@
   "private": false,
   "main": "tvgeek.coffee",
   "dependencies": {
-    "async": "^2.6.1",
+    "async": "^2.6.4",
     "cli-color": "^1.2.0",
     "commander": "^2.15.1",
     "libxmljs": "^0.19.7",
